@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import date, timedelta
+from functools import lru_cache
 
 import joblib
 import numpy as np
@@ -28,11 +29,17 @@ app.add_middleware(
 )
 
 
+@lru_cache(maxsize=1)
 def _data() -> pd.DataFrame:
     try:
         return load_daily_data()
     except (FileNotFoundError, ValueError):
         return pd.DataFrame()
+
+
+@lru_cache(maxsize=1)
+def _model():
+    return joblib.load(MODEL_PATH)
 
 
 def _metadata() -> dict:
@@ -121,7 +128,7 @@ def predict(request: ForecastRequest):
     row["weekday_cos"] = float(np.cos(2 * np.pi * today.weekday() / 7))
     for column in FEATURE_COLUMNS:
         row.setdefault(column, np.nan)
-    model = joblib.load(MODEL_PATH)
+    model = _model()
     estimate = max(0.0, float(model.predict(pd.DataFrame([row], columns=FEATURE_COLUMNS))[0]))
     category = aqi_category(estimate)
     metadata = _metadata()
@@ -175,7 +182,7 @@ def transfer_matrix():
 def explain(city: str):
     if not MODEL_PATH.exists():
         raise HTTPException(status_code=503, detail="Train a model to enable feature importance.")
-    model = joblib.load(MODEL_PATH)
+    model = _model()
     estimator = model.steps[-1][1] if hasattr(model, "steps") else model
     if hasattr(estimator, "feature_importances_"):
         values = estimator.feature_importances_
