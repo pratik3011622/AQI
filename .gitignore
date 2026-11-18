@@ -17,3 +17,8 @@ models/*
 results/*
 !results/README.md
 *.joblib
+
+# Deployment artifacts required by the hosted API.
+!data/raw/aqi.csv
+!models/best_model.joblib
+!models/metadata.json

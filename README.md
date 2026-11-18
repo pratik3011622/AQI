@@ -178,16 +178,26 @@ The predict endpoint supports a simple city-first request such as:
 
 The backend automatically fills the missing lag values from recent AQI data when needed.
 
-## Deployment notes
+## Deployment
 
-For real deployment, do the following:
+The project is configured for a split deployment:
 
-1. host the FastAPI backend on a cloud service or VM
-2. set the frontend API URL in the environment or deployment config
-3. keep the model artifact in a stable storage path
-4. configure CORS for the production frontend domain
-5. use environment variables instead of hardcoded ports
-6. add monitoring and logging for failed predictions and missing data
+- Render hosts FastAPI through `render.yaml`.
+- Vercel hosts the Vite frontend from the `frontend` directory.
+
+For the backend, set `CORS_ORIGINS` to the deployed frontend origin, for example:
+
+```text
+https://your-project.vercel.app
+```
+
+For the frontend, set `VITE_API_URL` to the public Render API URL, for example:
+
+```text
+https://aqi-api.onrender.com
+```
+
+Use `render.yaml` for the backend and `frontend/vercel.json` for frontend routing. The deployed repository includes the source data and trained model needed for the demo.
 
 ## Validation commands
 
