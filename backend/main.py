@@ -60,6 +60,25 @@ def _advisory(category: str) -> str:
     }[category]
 
 
+def pm25_to_indian_aqi(pm25: float) -> float:
+    """Official CPCB formula to convert 24-hr PM2.5 (ug/m3) into Indian NAQI sub-index."""
+    c = max(0.0, float(pm25))
+    if c <= 30.0:
+        return round((50.0 / 30.0) * c, 1)
+    elif c <= 60.0:
+        return round(50.0 + ((100.0 - 50.0) / (60.0 - 30.0)) * (c - 30.0), 1)
+    elif c <= 90.0:
+        return round(100.0 + ((200.0 - 100.0) / (90.0 - 60.0)) * (c - 60.0), 1)
+    elif c <= 120.0:
+        return round(200.0 + ((300.0 - 200.0) / (120.0 - 90.0)) * (c - 90.0), 1)
+    elif c <= 250.0:
+        return round(300.0 + ((400.0 - 300.0) / (250.0 - 120.0)) * (c - 120.0), 1)
+    elif c <= 500.0:
+        return round(400.0 + ((500.0 - 400.0) / (500.0 - 250.0)) * (c - 250.0), 1)
+    else:
+        return 500.0
+
+
 def _find_coordinates(city: str) -> tuple[float, float] | None:
     target = city.strip().casefold()
     for name, coords in CITY_COORDINATES.items():
@@ -117,6 +136,80 @@ def live_aqi(city: str):
         "scale": "US AQI",
         "source": "Open-Meteo Air Quality API",
         "note": "Live reading; not the historical Indian AQI scale used to train the XGBoost model.",
+    }
+
+
+@app.get("/live-history/{city}")
+def live_history(city: str):
+    coordinates = _find_coordinates(city)
+    if coordinates is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Live telemetry is available for selected supported cities only. No coordinates configured for {city}."
+        )
+
+    latitude, longitude = coordinates
+    try:
+        response = requests.get(
+            "https://air-quality-api.open-meteo.com/v1/air-quality",
+            params={
+                "latitude": latitude,
+                "longitude": longitude,
+                "hourly": "pm2_5",
+                "past_days": 7,
+                "forecast_days": 1,
+                "timezone": "Asia/Kolkata",
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except requests.RequestException as issue:
+        raise HTTPException(status_code=503, detail=f"Live telemetry provider is unavailable: {issue}") from issue
+    except (ValueError, KeyError) as issue:
+        raise HTTPException(status_code=502, detail=f"Invalid response from live telemetry provider: {issue}") from issue
+
+    hourly = payload.get("hourly", {})
+    times = hourly.get("time", [])
+    pm25_vals = hourly.get("pm2_5", [])
+
+    if not times or not pm25_vals:
+        raise HTTPException(status_code=503, detail="The live telemetry provider did not return hourly PM2.5 readings.")
+
+    from collections import defaultdict
+    day_readings = defaultdict(list)
+    for t_str, val in zip(times, pm25_vals):
+        if val is not None:
+            day_str = str(t_str)[:10]
+            day_readings[day_str].append(float(val))
+
+    observations = []
+    for day_str in sorted(day_readings.keys()):
+        vals = day_readings[day_str]
+        if vals:
+            avg_pm25 = sum(vals) / len(vals)
+            indian_aqi = pm25_to_indian_aqi(avg_pm25)
+            observations.append({
+                "date": day_str,
+                "aqi": indian_aqi,
+                "pm25": round(avg_pm25, 1)
+            })
+
+    if len(observations) < 7:
+        raise HTTPException(status_code=503, detail=f"Need at least 7 live daily averages; provider only returned {len(observations)}.")
+
+    recent_observations = observations[-7:]
+    latest = recent_observations[-1]
+
+    return {
+        "city": city,
+        "source": "Open-Meteo Live PM2.5 Telemetry (CPCB NAQI Converted)",
+        "scale": "Indian NAQI (CPCB-equivalent derived from live PM2.5)",
+        "observations": recent_observations,
+        "current_aqi": latest["aqi"],
+        "current_pm25": latest["pm25"],
+        "observed_at": latest["date"],
+        "mode": "live_realtime",
     }
 
 

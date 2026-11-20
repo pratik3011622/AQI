@@ -84,9 +84,11 @@ function App() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
+  const [pipelineMode, setPipelineMode] = useState('live')
   const [live, setLive] = useState(null)
   const [liveLoading, setLiveLoading] = useState(false)
   const [liveError, setLiveError] = useState('')
+  const [liveHistoryLoading, setLiveHistoryLoading] = useState(false)
   const [form, setForm] = useState({ aqi_history: [] })
   const comparisonCity = cities.find((item) => item.toLowerCase() === compareCity.toLowerCase() && item.toLowerCase() !== city.toLowerCase()) || cities.find((item) => item.toLowerCase() !== city.toLowerCase()) || ''
 
@@ -112,8 +114,32 @@ function App() {
 
   useEffect(() => {
     if (page !== 'forecast' || !cities.length) return
-    api(`/history/${encodeURIComponent(city)}?limit=90`).then((result) => setHistory(result.observations)).catch(() => setHistory([]))
-  }, [city, page, cities])
+    if (pipelineMode === 'live') {
+      setLiveHistoryLoading(true)
+      api(`/live-history/${encodeURIComponent(city)}`)
+        .then((result) => {
+          setHistory(result.observations)
+          setForm({ aqi_history: result.observations.map((item) => Number(item.aqi)) })
+        })
+        .catch(() => {
+          // Fallback to historical dataset if live telemetry is unavailable
+          api(`/history/${encodeURIComponent(city)}?limit=90`)
+            .then((res) => {
+              setHistory(res.observations)
+              setForm({ aqi_history: res.observations.slice(-7).map((item) => Number(item.aqi)) })
+            })
+            .catch(() => setHistory([]))
+        })
+        .finally(() => setLiveHistoryLoading(false))
+    } else {
+      api(`/history/${encodeURIComponent(city)}?limit=90`)
+        .then((res) => {
+          setHistory(res.observations)
+          setForm({ aqi_history: res.observations.slice(-7).map((item) => Number(item.aqi)) })
+        })
+        .catch(() => setHistory([]))
+    }
+  }, [city, page, cities, pipelineMode])
 
   useEffect(() => {
     if (page !== 'forecast') return
@@ -140,13 +166,20 @@ function App() {
 
   useEffect(() => {
     if (page !== 'forecast' || !comparisonCity) return
-    api(`/history/${encodeURIComponent(comparisonCity)}?limit=90`).then((result) => setCompareHistory(result.observations)).catch(() => setCompareHistory([]))
-  }, [comparisonCity, page])
-
-  useEffect(() => {
-    if (page !== 'forecast' || !history.length) return
-    setForm({ aqi_history: history.slice(-7).map((item) => Number(item.aqi)) })
-  }, [history, page])
+    if (pipelineMode === 'live') {
+      api(`/live-history/${encodeURIComponent(comparisonCity)}`)
+        .then((result) => setCompareHistory(result.observations))
+        .catch(() => {
+          api(`/history/${encodeURIComponent(comparisonCity)}?limit=90`)
+            .then((res) => setCompareHistory(res.observations))
+            .catch(() => setCompareHistory([]))
+        })
+    } else {
+      api(`/history/${encodeURIComponent(comparisonCity)}?limit=90`)
+        .then((res) => setCompareHistory(res.observations))
+        .catch(() => setCompareHistory([]))
+    }
+  }, [comparisonCity, page, pipelineMode])
 
   useEffect(() => {
     if (page === 'transfer' && !matrix) api('/transfer-matrix').then(setMatrix).catch((issue) => setError(issue.message))
@@ -192,10 +225,49 @@ function App() {
       <header className="topbar"><button className="icon-button menu-button" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu size={19} /></button><div className="breadcrumb"><span>WORKSPACE</span><span className="crumb-slash">/</span><b>{active?.label.toUpperCase()}</b></div><div className={`connection ${apiState}`}><span className="connection-dot" />{statusLabel}</div></header>
       <div className="page-content">
         {page === 'forecast' && <>
-          <section className="page-heading"><div><div className="eyebrow green-eyebrow"><span className="tiny-line" /> AIR QUALITY <span className="heading-separator">/</span> INDIA</div><h1>Current AQI, <span>with context.</span></h1><p>See live readings separately from the historical XGBoost next-day estimate.</p></div><div className="heading-date"><span>MODEL STATUS</span><b>Historical estimate</b><small>Live reading · 2022–2025 model</small></div></section>
+          <section className="page-heading">
+            <div>
+              <div className="eyebrow green-eyebrow"><span className="tiny-line" /> AIR QUALITY <span className="heading-separator">/</span> INDIA</div>
+              <h1>{pipelineMode === 'live' ? 'Live Telemetry, ' : 'Historical AQI, '}<span>with context.</span></h1>
+              <p>{pipelineMode === 'live' ? 'Forecasting tomorrow from real-time 7-day sensor telemetry (CPCB NAQI converted).' : 'Evaluating next-day predictions against the held-out historical CPCB dataset.'}</p>
+            </div>
+            <div className="heading-date">
+              <span>PIPELINE MODE</span>
+              <b>{pipelineMode === 'live' ? 'Real-Time Telemetry' : 'Historical Benchmark'}</b>
+              <small>{pipelineMode === 'live' ? 'Open-Meteo live feed · Nov 2026' : 'Audited CPCB series · 2022–2025'}</small>
+            </div>
+          </section>
+
+          <div className="pipeline-toggle-bar">
+            <span className="toggle-label">FORECAST PIPELINE:</span>
+            <div className="toggle-buttons">
+              <button
+                type="button"
+                className={`toggle-btn ${pipelineMode === 'live' ? 'toggle-active' : ''}`}
+                onClick={() => setPipelineMode('live')}
+              >
+                <Activity size={14} /> ⚡ Live Telemetry Pipeline (Nov 2026)
+              </button>
+              <button
+                type="button"
+                className={`toggle-btn ${pipelineMode === 'historical' ? 'toggle-active' : ''}`}
+                onClick={() => setPipelineMode('historical')}
+              >
+                <BookOpen size={14} /> 📚 Historical Benchmark (2022–2025)
+              </button>
+            </div>
+          </div>
+
           {error && <div className="alert"><CircleHelp size={17} /><span>{error}</span><button aria-label="Dismiss" onClick={() => setError('')}><X size={15} /></button></div>}
           <section className="overview-grid">
-            <div className="forecast-panel"><div className="panel-top"><div><span className="eyebrow">CURRENT + HISTORICAL ESTIMATE</span><h2>Air quality outlook</h2></div><span className="model-chip"><span /> {apiState === 'ready' ? 'MODEL READY' : 'MODEL UNAVAILABLE'}</span></div>
+            <div className="forecast-panel">
+              <div className="panel-top">
+                <div>
+                  <span className="eyebrow">{pipelineMode === 'live' ? 'REAL-TIME TELEMETRY PIPELINE' : 'HISTORICAL BENCHMARK'}</span>
+                  <h2>Air quality outlook</h2>
+                </div>
+                <span className="model-chip"><span /> {apiState === 'ready' ? 'MODEL READY' : 'MODEL UNAVAILABLE'}</span>
+              </div>
               <form onSubmit={submitForecast} className="forecast-form">
                 <div className="field-block">
                   <label className="field-label" htmlFor="city-select">City</label>
@@ -204,10 +276,12 @@ function App() {
 
                 <div className="mini-history-card">
                   <div className="mini-history-header">
-                    <span className="eyebrow">AUTO-FILLED AQI</span>
-                    <span className="mini-badge">Last 7 days</span>
+                    <span className="eyebrow">{pipelineMode === 'live' ? 'LIVE 7-DAY TELEMETRY' : 'AUTO-FILLED AQI'}</span>
+                    <span className="mini-badge">{pipelineMode === 'live' ? 'Live CPCB NAQI' : 'Last 7 days'}</span>
                   </div>
-                  {form.aqi_history.length ? (
+                  {liveHistoryLoading ? (
+                    <p className="form-hint muted-text"><LoaderCircle className="spin" size={14} /> Loading real-time 7-day telemetry for {city}...</p>
+                  ) : form.aqi_history.length ? (
                     <div className="mini-history-values">
                       {form.aqi_history.map((value, index) => (
                         <span key={`${city}-${index}`} className="mini-pill">{value}</span>
@@ -253,13 +327,30 @@ function App() {
                     </p>
                   </div>
                 ) : null}
-                <p className="form-hint"><CircleHelp size={14} /> Choose a city for a live reading and a separate historical next-day model estimate.</p>
+                <p className="form-hint"><CircleHelp size={14} /> {pipelineMode === 'live' ? 'Live mode uses real-time 7-day telemetry converted to Indian NAQI.' : 'Historical mode evaluates the model against verified 2022–2025 records.'}</p>
                 <button className="primary-button" type="submit" disabled={busy || apiState !== 'ready'}>{busy ? <LoaderCircle className="spin" size={17} /> : <Activity size={17} />}<span>{busy ? 'Estimating…' : 'Estimate next day'}</span><ArrowUpRight size={16} /></button>
                 {apiState !== 'ready' && <p className="disabled-reason">{apiState === 'offline' ? 'Start the API to enable forecasts.' : 'Add data and train a model to enable forecasts.'}</p>}
               </form>
             </div>
-            <div className="result-panel"><div className="panel-top result-top"><div><span className="eyebrow">MODELED NEXT-DAY WINDOW</span><h2>{forecast ? new Date(`${forecast.forecast_for}T12:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' }) : 'Awaiting estimate'}</h2></div><span className="result-icon"><CloudSun size={20} /></span></div>
-              {forecast ? <div className="result-content"><div className="result-number">{forecast.forecast_aqi}<span>AQI</span></div><div className="category-pill"><span />{forecast.category}</div><p>{forecast.advisory}</p><div className="validation-note"><span>HOLDOUT ERROR REFERENCE</span><strong>{forecast.validation_mae == null ? 'Not available' : `${forecast.validation_mae} AQI points`}</strong><small>Mean absolute error on the test year; this is not a guaranteed prediction range.</small></div><small>Estimated by {forecast.model} · {forecast.research_notice}</small></div> : <div className="result-empty"><div className="air-lines"><span /><span /><span /></div><p>Your next-day estimate<br />will appear here.</p><small>No forecast has been generated</small></div>}
+            <div className="result-panel">
+              <div className="panel-top result-top">
+                <div>
+                  <span className="eyebrow">{pipelineMode === 'live' ? 'REAL-TIME FORECAST WINDOW' : 'MODELED NEXT-DAY WINDOW'}</span>
+                  <h2>{forecast ? new Date(`${forecast.forecast_for}T12:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' }) : 'Awaiting estimate'}</h2>
+                </div>
+                <span className="result-icon"><CloudSun size={20} /></span>
+              </div>
+              {forecast ? <div className="result-content">
+                <div className="result-number">{forecast.forecast_aqi}<span>AQI</span></div>
+                <div className="category-pill"><span />{forecast.category}</div>
+                <p>{forecast.advisory}</p>
+                <div className="validation-note">
+                  <span>{pipelineMode === 'live' ? 'PIPELINE INPUT' : 'HOLDOUT ERROR REFERENCE'}</span>
+                  <strong>{pipelineMode === 'live' ? 'Live 7-Day Telemetry' : (forecast.validation_mae == null ? 'Not available' : `${forecast.validation_mae} AQI points`)}</strong>
+                  <small>{pipelineMode === 'live' ? 'Forecast derived from real-time 7-day ambient PM2.5 converted to Indian CPCB NAQI.' : 'Mean absolute error on the test year; this is not a guaranteed prediction range.'}</small>
+                </div>
+                <small>Estimated by {forecast.model} · {forecast.research_notice}</small>
+              </div> : <div className="result-empty"><div className="air-lines"><span /><span /><span /></div><p>Your next-day estimate<br />will appear here.</p><small>No forecast has been generated</small></div>}
               <div className="result-footer"><span><span className="footer-dot" /> CPCB CATEGORY BANDS</span><span>0 — 500+</span></div>
             </div>
           </section>

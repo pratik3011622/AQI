@@ -65,6 +65,17 @@ class FeatureIntegrityTests(unittest.TestCase):
         self.assertIsNotNone(_find_coordinates("Jaipur"))
         self.assertIsNone(_find_coordinates("NonExistentCityXYZ"))
 
+    def test_pm25_to_indian_aqi_breakpoints(self):
+        from backend.main import pm25_to_indian_aqi
+        self.assertEqual(pm25_to_indian_aqi(0), 0.0)
+        self.assertEqual(pm25_to_indian_aqi(30), 50.0)
+        self.assertEqual(pm25_to_indian_aqi(60), 100.0)
+        self.assertEqual(pm25_to_indian_aqi(90), 200.0)
+        self.assertEqual(pm25_to_indian_aqi(120), 300.0)
+        self.assertEqual(pm25_to_indian_aqi(250), 400.0)
+        self.assertEqual(pm25_to_indian_aqi(500), 500.0)
+
+
 
 
 if __name__ == "__main__":
