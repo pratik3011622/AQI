@@ -183,6 +183,54 @@ story += [bullet("The active raw data ends at 2025-04-30, so it should not be de
 story += [P("15. Final 60-Second Viva Summary", "H1X")]
 story += [P("Our project is a full-stack AQI forecasting system. The active dataset contains 235005 raw observations for 291 cities from April 2022 to April 2025. We normalize column names and dates, convert numeric fields, remove duplicates, sort observations, and create lag, rolling, and cyclic calendar features for each city. We keep the target as AQI at the next day, so features use only past information. We compare Persistence, Ridge, Random Forest, and XGBoost using a chronological split with 2025 as the test year. XGBoost is selected because it achieves the lowest held-out RMSE of 29.82, with 20.22 MAE and 71.07% R-squared. FastAPI serves health, city history, prediction, transfer, and explanation endpoints, and React presents the forecast and charts. The system is deployed with Render for the API and Vercel for the frontend. It is a learning prototype, not an official AQI or medical advisory.")]
 
+story += [P("17. Code Walkthrough from Dataset to Deployment", "H1X")]
+story += [P("This appendix explains the important code blocks. It is enough for a viva: first explain what the code does, then explain why it is necessary, and finally connect it to the output.")]
+
+story += [P("17.1 src/data_utils.py — column alias normalization", "H2X")]
+story += [P("Purpose: accept different AQI CSV column names and convert them into one fixed internal schema.", "SmallX")]
+story += [P("def _key(value):<br/>    return re.sub(r'[^a-z0-9.]', '', str(value).strip().lower())<br/><br/>def normalize_columns(frame, require_aqi=True):<br/>    lookup = {_key(alias): canonical ...}<br/>    rename = {c: lookup[_key(c)] for c in frame.columns if _key(c) in lookup}<br/>    frame = frame.rename(columns=rename).copy()<br/>    required = {'city', 'date', 'aqi'} ...<br/>    if not required.issubset(frame.columns): raise ValueError(...)<br/>    return frame", "CodeX")]
+story += [P("Viva explanation: the aliases allow files named city/area/location to be read as city and aqi_value/AQI/index to be read as AQI. This reduces manual data conversion and makes the loader flexible.")]
+
+story += [P("17.2 src/data_utils.py — loading and cleaning", "H2X")]
+story += [P("frame = normalize_columns(pd.read_csv(source))<br/>frame['date'] = pd.to_datetime(frame['date'], errors='coerce', dayfirst=True)<br/>frame['city'] = frame['city'].astype('string').str.strip()<br/>numeric = [column ...]<br/>for column in numeric:<br/>    frame[column] = pd.to_numeric(frame[column], errors='coerce')<br/>frame = frame.dropna(subset=['city', 'date'])<br/>frame = frame.drop_duplicates(['city', 'date'], keep='last')<br/>frame = frame.sort_values(['city', 'date']).reset_index(drop=True)", "CodeX")]
+story += [P("Viva explanation: date conversion prevents lexicographic date sorting. errors='coerce' turns invalid numeric values into missing values. Duplicate city-date rows are reduced to the latest/last observation. Sorting makes lag creation chronological.")]
+
+story += [P("17.3 src/data_utils.py — strict past feature construction", "H2X")]
+story += [P("aqi = city_frame['aqi'].astype(float)<br/>city_frame['aqi_today'] = aqi<br/>for lag in (1, 2, 3, 7):<br/>    city_frame[f'aqi_lag_{lag}'] = aqi.shift(lag)<br/>for window in (3, 7):<br/>    city_frame[f'aqi_rolling_mean_{window}'] = aqi.rolling(window).mean()<br/>    city_frame[f'aqi_rolling_std_{window}'] = aqi.rolling(window).std()<br/>city_frame['target'] = aqi.shift(-1)<br/>city_frame['target_date'] = city_frame['date'].shift(-1)", "CodeX")]
+story += [P("Viva explanation: shift(lag) moves previous values into the current row. shift(-1) creates tomorrow's AQI as target. A lag sample can use AQI(t-1) but never AQI(t+1), so future leakage is avoided.")]
+
+story += [P("17.4 src/config.py — feature list", "H2X")]
+story += [P("FEATURE_COLUMNS contains:<br/>aqi_today, aqi_lag_1/2/3/7,<br/>PM2.5 and PM2.5 lags, 3/7-day AQI rolling mean and standard deviation,<br/>optional pollutant fields, weather fields, and month/weekday sine-cosine features.", "CodeX")]
+story += [P("Viva explanation: city name is intentionally excluded. If city name were a feature, the model could memorize city identity rather than learn general AQI dynamics.")]
+
+story += [P("17.5 src/train.py — chronological split", "H2X")]
+story += [P("year = test_year or int(samples['target_date'].dt.year.max())<br/>train_mask = samples['target_date'].dt.year < year<br/>test_mask = samples['target_date'].dt.year == year<br/>train_rows = samples.loc[train_mask]<br/>test_rows = samples.loc[test_mask]<br/>x_train, y_train = train_rows[FEATURE_COLUMNS], train_rows['target']<br/>x_test, y_test = test_rows[FEATURE_COLUMNS], test_rows['target']", "CodeX")]
+story += [P("Viva explanation: this is a time-based holdout. Rows before 2025 are training rows and 2025 rows are testing rows. It does not shuffle observations across years.")]
+
+story += [P("17.6 src/train.py — candidate models", "H2X")]
+story += [P("models = {<br/>  'Ridge': make_pipeline(SimpleImputer(), StandardScaler(), Ridge(alpha=10.0)),<br/>  'Random Forest': make_pipeline(SimpleImputer(), RandomForestRegressor(...)),<br/>  'XGBoost': make_pipeline(SimpleImputer(), XGBRegressor(...))<br/>}<br/>scores.append(regression_metrics(y_test, predicted))", "CodeX")]
+story += [P("Viva explanation: a pipeline applies the same missing-value treatment to training and testing data. Ridge also scales features. Random Forest and XGBoost learn nonlinear relationships. Persistence is evaluated separately as a naive baseline.")]
+
+story += [P("17.7 src/evaluate.py — metrics and categories", "H2X")]
+story += [P("MAE: mean_absolute_error(actual, predicted)<br/>RMSE: sqrt(mean_squared_error(actual, predicted))<br/>R2: r2_score(actual, predicted)<br/>Category accuracy: accuracy_score(actual_bands, predicted_bands)<br/>Macro F1: f1_score(..., average='macro')", "CodeX")]
+story += [P("Category code: AQI <=50 Good, <=100 Satisfactory, <=200 Moderate, <=300 Poor, <=400 Very Poor, otherwise Severe. MAE and RMSE measure numeric accuracy; category accuracy and F1 measure band classification.")]
+
+story += [P("17.8 backend/main.py — city-only prediction", "H2X")]
+story += [P("selected = frame[city match].sort_values('date')<br/>recent = selected.tail(7)<br/>recent_values = recent['aqi'].astype(float).tolist()<br/>values['aqi_today'] = recent_values[-1]<br/>values['aqi_lag_1'] = recent_values[-2]<br/>values['aqi_lag_2'] = recent_values[-3]<br/>values['aqi_lag_3'] = recent_values[-4]<br/>values['aqi_lag_7'] = recent_values[0]<br/>estimate = model.predict(pd.DataFrame([row], columns=FEATURE_COLUMNS))[0]", "CodeX")]
+story += [P("Viva explanation: only the city name is required by the end user. The backend reconstructs the last seven observations and the technical lag features automatically.")]
+
+story += [P("17.9 backend/main.py — static city transfer matrix", "H2X")]
+story += [P("static_path = METADATA_PATH.parent.parent / 'results' / 'transfer_matrix.json'<br/>if static_path.exists():<br/>    return json.loads(static_path.read_text(...))", "CodeX")]
+story += [P("Viva explanation: the matrix is precomputed instead of retraining Random Forest or Ridge models for every browser request. This improves deployed performance and prevents free-server timeouts.")]
+
+story += [P("17.10 frontend/src/App.jsx — API state and city request", "H2X")]
+story += [P("const API = import.meta.env.VITE_API_URL || 'http://localhost:8001'<br/><br/>async function api(path, options) {<br/>    const response = await fetch(`${API}${path}`, options)<br/>    const body = await response.json().catch(() => ({}))<br/>    if (!response.ok) throw new Error(body.detail)<br/>    return body<br/>}", "CodeX")]
+story += [P("Viva explanation: VITE_API_URL selects the deployed Render API. The fallback selects the local FastAPI server during development.")]
+
+story += [P("17.11 frontend/src/App.jsx — page state and calls", "H2X")]
+story += [P("useEffect(() => {<br/>    api('/health').then(...)<br/>    api('/cities').then(...)<br/>}, [])<br/><br/>submitForecast: setForecast(await api('/predict', {<br/>    method: 'POST',<br/>    headers: {'Content-Type':'application/json'},<br/>    body: JSON.stringify({city})<br/>}))", "CodeX")]
+story += [P("Viva explanation: React does not calculate the forecast. It obtains state from FastAPI. The frontend only collects the city, sends the request, and renders the JSON result.")]
+
 story += [P("16. Recommended Presentation Sequence", "H1X")]
 story += [P("Slide 1: Problem and objective. Slide 2: Dataset source and dimensions. Slide 3: Cleaning pipeline. Slide 4: Feature engineering with lags. Slide 5: Chronological split. Slide 6: Model comparison table. Slide 7: Why XGBoost won. Slide 8: City-transfer meaning. Slide 9: FastAPI architecture. Slide 10: React dashboard. Slide 11: Deployment and CORS. Slide 12: Limitations and future work.")]
 
