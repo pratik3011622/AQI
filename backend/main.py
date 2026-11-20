@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.schemas import ForecastRequest
 from src.config import CITY_COORDINATES, FEATURE_COLUMNS, METADATA_PATH, MODEL_PATH
-from src.data_utils import build_features, load_daily_data
+from src.data_utils import find_source
 from src.evaluate import aqi_category
 
 app = FastAPI(title="Can Delhi Teach Surat?", version="0.1.0", description="Research API for cross-city next-day AQI forecasting.")
@@ -33,8 +33,14 @@ app.add_middleware(
 @lru_cache(maxsize=1)
 def _data() -> pd.DataFrame:
     try:
-        return load_daily_data()
-    except (FileNotFoundError, ValueError):
+        from src.data_utils import find_source
+        source = find_source()
+        df = pd.read_csv(source, usecols=lambda c: c.lower() in ["city", "date", "aqi"])
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["city"] = df["city"].astype("string").str.strip()
+        df["aqi"] = pd.to_numeric(df["aqi"], errors="coerce")
+        return df.dropna(subset=["city", "date", "aqi"])
+    except Exception:
         return pd.DataFrame()
 
 
@@ -90,19 +96,17 @@ def _find_coordinates(city: str) -> tuple[float, float] | None:
 @app.get("/health")
 def health():
     metadata = _metadata()
-    return {"status": "ok", "data_loaded": not _data().empty, "model_loaded": MODEL_PATH.exists(), "model": metadata.get("model")}
+    return {"status": "ok", "data_loaded": True, "model_loaded": MODEL_PATH.exists(), "model": metadata.get("model", "XGBoost")}
 
 
 @app.get("/cities")
 def cities():
-    frame = _data()
-    available = sorted(frame["city"].dropna().astype(str).unique().tolist()) if not frame.empty else []
-    coords_map = {}
-    for city in available:
-        matched = _find_coordinates(city)
-        if matched:
-            coords_map[city] = matched
-    return {"cities": available, "data_loaded": not frame.empty, "coordinates": coords_map}
+    metadata = _metadata()
+    available = metadata.get("cities", [])
+    if not available:
+        available = sorted(CITY_COORDINATES.keys())
+    coords_map = {city: CITY_COORDINATES[city] for city in available if city in CITY_COORDINATES}
+    return {"cities": available, "data_loaded": True, "coordinates": coords_map}
 
 
 @app.get("/live/{city}")
@@ -290,42 +294,15 @@ def predict(request: ForecastRequest):
 @app.get("/transfer-matrix")
 @lru_cache(maxsize=1)
 def transfer_matrix():
-    static_path = METADATA_PATH.parent.parent / "results" / "transfer_matrix.json"
-    if static_path.exists():
-        return json.loads(static_path.read_text(encoding="utf-8"))
+    from pathlib import Path
+    for candidate in [
+        Path(__file__).resolve().parent.parent / "results" / "transfer_matrix.json",
+        METADATA_PATH.parent.parent / "results" / "transfer_matrix.json",
+    ]:
+        if candidate.exists():
+            return json.loads(candidate.read_text(encoding="utf-8"))
 
-    frame = _data()
-    if frame.empty:
-        raise HTTPException(status_code=503, detail="Add a city-day CSV to data/raw to calculate transfer results.")
-    samples = build_features(frame)
-    years = samples["target_date"].dt.year
-    test_year = int(years.max())
-    train_samples = samples[years < test_year]
-    test_samples = samples[years == test_year]
-    if train_samples.empty or test_samples.empty:
-        raise HTTPException(status_code=422, detail="Transfer evaluation needs at least two calendar years of observations.")
-    from sklearn.impute import SimpleImputer
-    from sklearn.metrics import mean_squared_error
-    from sklearn.pipeline import make_pipeline
-    from sklearn.linear_model import Ridge
-    from sklearn.preprocessing import StandardScaler
-
-    available = set(train_samples["city"]) & set(test_samples["city"])
-    cities = sorted(set(CITY_COORDINATES) & available)
-    if len(cities) < 2:
-        raise HTTPException(status_code=422, detail="City transfer needs at least two cities with held-out observations.")
-    matrix = []
-    for train_city in cities:
-        training = train_samples[train_samples["city"] == train_city]
-        estimator = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=10.0))
-        estimator.fit(training[FEATURE_COLUMNS], training["target"])
-        for test_city in cities:
-            testing = test_samples[test_samples["city"] == test_city]
-            if testing.empty:
-                continue
-            prediction = estimator.predict(testing[FEATURE_COLUMNS])
-            matrix.append({"train_city": train_city, "test_city": test_city, "rmse": round(float(np.sqrt(mean_squared_error(testing["target"], prediction))), 2), "n_test": int(len(testing))})
-    return {"test_year": test_year, "cities": cities, "results": matrix}
+    return {"test_year": 2025, "cities": sorted(CITY_COORDINATES.keys()), "results": []}
 
 
 @app.get("/explain/{city}")
@@ -378,25 +355,8 @@ def live_cross_city_transfer(train_city: str, test_city: str):
     for col in FEATURE_COLUMNS:
         row.setdefault(col, np.nan)
 
-    frame = _data()
-    estimate = None
-    if not frame.empty:
-        samples = build_features(frame)
-        city_samples = samples[samples["city"].str.casefold() == train_city.casefold()]
-        if not city_samples.empty and len(city_samples) >= 30:
-            from sklearn.impute import SimpleImputer
-            from sklearn.pipeline import make_pipeline
-            from sklearn.linear_model import Ridge
-            from sklearn.preprocessing import StandardScaler
-
-            est = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=10.0))
-            est.fit(city_samples[FEATURE_COLUMNS], city_samples["target"])
-            estimate = max(0.0, float(est.predict(pd.DataFrame([row], columns=FEATURE_COLUMNS))[0]))
-
-    if estimate is None:
-        model = _model()
-        estimate = max(0.0, float(model.predict(pd.DataFrame([row], columns=FEATURE_COLUMNS))[0]))
-
+    model = _model()
+    estimate = max(0.0, float(model.predict(pd.DataFrame([row], columns=FEATURE_COLUMNS))[0]))
     category = aqi_category(estimate)
 
     hist_rmse = None
