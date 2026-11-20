@@ -10,7 +10,7 @@ import {
 } from 'recharts'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8001'
-const CITY_CHOICES = ['Ahmedabad', 'Amritsar', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Jaipur', 'Kolkata', 'Lucknow', 'Mumbai', 'Pune']
+const CITY_CHOICES = ['Ahmedabad', 'Amritsar', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Jaipur', 'Kolkata', 'Lucknow', 'Mumbai', 'Pune', 'Surat']
 const NAV = [
   { id: 'forecast', label: 'Forecast', icon: Gauge },
   { id: 'transfer', label: 'City transfer', icon: GitCompareArrows },
@@ -90,7 +90,26 @@ function App() {
   const [liveError, setLiveError] = useState('')
   const [liveHistoryLoading, setLiveHistoryLoading] = useState(false)
   const [form, setForm] = useState({ aqi_history: [] })
+  const [transferMode, setTransferMode] = useState('live')
+  const [transferSourceCity, setTransferSourceCity] = useState('Delhi')
+  const [transferTargetCity, setTransferTargetCity] = useState('Surat')
+  const [liveTransferResult, setLiveTransferResult] = useState(null)
+  const [liveTransferBusy, setLiveTransferBusy] = useState(false)
+  const [liveTransferError, setLiveTransferError] = useState('')
   const comparisonCity = cities.find((item) => item.toLowerCase() === compareCity.toLowerCase() && item.toLowerCase() !== city.toLowerCase()) || cities.find((item) => item.toLowerCase() !== city.toLowerCase()) || ''
+
+  async function runLiveTransfer() {
+    setLiveTransferBusy(true)
+    setLiveTransferError('')
+    try {
+      const data = await api(`/live-transfer/${encodeURIComponent(transferSourceCity)}/${encodeURIComponent(transferTargetCity)}`)
+      setLiveTransferResult(data)
+    } catch (err) {
+      setLiveTransferError(err.message || 'Could not complete live cross-city transfer.')
+    } finally {
+      setLiveTransferBusy(false)
+    }
+  }
 
   function applyDemoInputs() {
     setForm({ aqi_history: DEMO_VALUES.aqi_history })
@@ -182,7 +201,12 @@ function App() {
   }, [comparisonCity, page, pipelineMode])
 
   useEffect(() => {
-    if (page === 'transfer' && !matrix) api('/transfer-matrix').then(setMatrix).catch((issue) => setError(issue.message))
+    if (page === 'transfer') {
+      if (!matrix) api('/transfer-matrix').then(setMatrix).catch((issue) => setError(issue.message))
+      if (!liveTransferResult && !liveTransferBusy) {
+        runLiveTransfer()
+      }
+    }
     if (page === 'explain') api(`/explain/${encodeURIComponent(city)}`).then(setExplanation).catch((issue) => setError(issue.message))
   }, [page, city, matrix])
 
@@ -359,7 +383,185 @@ function App() {
           <div className="footnote"><span>DATA NOTE</span><p>Live readings come from Open-Meteo in US AQI. The next-day estimate uses a separate XGBoost model trained on historical Indian AQI data and is not an official CPCB forecast or medical advice.</p></div>
         </>}
 
-        {page === 'transfer' && <><section className="page-heading compact-heading"><div><div className="eyebrow green-eyebrow"><span className="tiny-line" /> CITY COMPARISON <span className="heading-separator">/</span> INDIA</div><h1>Learn in one city. <span>Test in another.</span></h1><p>See whether a model trained on one city’s past AQI also makes useful estimates for a different city.</p></div></section>{error && <div className="alert"><CircleHelp size={17} /><span>{error}</span><button aria-label="Dismiss" onClick={() => setError('')}><X size={15} /></button></div>}<div className="experiment-strip"><span><Microscope size={17} /> HOW TO READ THIS</span><p>Each row shows a city used for training. Each column shows a city used for testing. A lower RMSE means the estimate was closer to the real AQI. The diagonal compares the model on the same city it trained on.</p></div><section className="data-section"><div className="section-heading"><div><span className="eyebrow">PREDICTION ERROR</span><h2>Training city compared with testing city</h2></div>{matrix && <span className="dataset-tag">HELD-OUT YEAR · {matrix.test_year}</span>}</div><div className="table-wrap">{matrix?.results?.length ? <table className="matrix-table"><thead><tr><th>TRAIN ↓ / TEST →</th>{matrix.cities.map((name) => <th key={name}>{name}</th>)}</tr></thead><tbody>{matrix.cities.map((trainCity) => <tr key={trainCity}><th>{trainCity}</th>{matrix.cities.map((testCity) => { const result = matrix.results.find((item) => item.train_city === trainCity && item.test_city === testCity); return <td key={testCity} className={trainCity === testCity ? 'self-cell' : ''}>{result ? result.rmse.toFixed(1) : '—'}</td> })}</tr>)}</tbody></table> : <EmptyState icon={GitCompareArrows} title="Transfer results appear after training data is added" detail="The matrix is computed from real held-out observations; no sample values are shown." />}</div><p className="table-caption">Values are RMSE in AQI points: the smaller the number, the closer the prediction. Compare off-diagonal cells to judge how well the model travels to another city.</p></section><section className="metrics-row three-stats"><Stat label="TEST METHOD" value="Past → future" note="The model only uses earlier observations" icon={Activity} /><Stat label="CITY NAME" value="Not used" note="The model learns patterns, not labels" icon={GitCompareArrows} /><Stat label="SIMPLE BASELINE" value="Today → tomorrow" note="The latest value becomes the estimate" icon={Gauge} /></section></>}
+        {page === 'transfer' && <>
+          <section className="page-heading compact-heading">
+            <div>
+              <div className="eyebrow green-eyebrow"><span className="tiny-line" /> CITY COMPARISON <span className="heading-separator">/</span> INDIA</div>
+              <h1>Learn in one city. <span>Test in another.</span></h1>
+              <p>See whether a model trained on one city’s past AQI also makes useful estimates for a different city.</p>
+            </div>
+          </section>
+
+          <div className="pipeline-toggle-bar">
+            <span className="toggle-label">TRANSFER EVALUATION:</span>
+            <div className="toggle-buttons">
+              <button
+                type="button"
+                className={`toggle-btn ${transferMode === 'live' ? 'toggle-active' : ''}`}
+                onClick={() => setTransferMode('live')}
+              >
+                <Activity size={14} /> ⚡ Live Cross-City Transfer (Nov 2026)
+              </button>
+              <button
+                type="button"
+                className={`toggle-btn ${transferMode === 'matrix' ? 'toggle-active' : ''}`}
+                onClick={() => setTransferMode('matrix')}
+              >
+                <BookOpen size={14} /> 📚 Historical Transfer Matrix (CPCB)
+              </button>
+            </div>
+          </div>
+
+          {error && <div className="alert"><CircleHelp size={17} /><span>{error}</span><button aria-label="Dismiss" onClick={() => setError('')}><X size={15} /></button></div>}
+
+          {transferMode === 'live' ? (
+            <section className="overview-grid" style={{ minHeight: 'auto', marginBottom: 28 }}>
+              <div className="forecast-panel">
+                <div className="panel-top">
+                  <div>
+                    <span className="eyebrow">ZERO-SHOT DOMAIN ADAPTATION</span>
+                    <h2>Live transfer workbench</h2>
+                  </div>
+                  <span className="model-chip"><span /> {apiState === 'ready' ? 'MODEL READY' : 'MODEL UNAVAILABLE'}</span>
+                </div>
+
+                <div className="forecast-form">
+                  <div className="field-block">
+                    <label className="field-label" htmlFor="source-city-select">Source City (Trained Model Anchor)</label>
+                    <div className="select-wrap">
+                      <select id="source-city-select" value={transferSourceCity} onChange={(e) => setTransferSourceCity(e.target.value)}>
+                        {(cities.length ? cities : CITY_CHOICES).map((name) => <option key={`src-${name}`}>{name}</option>)}
+                      </select>
+                      <ChevronDown size={16} />
+                    </div>
+                  </div>
+
+                  <div className="field-block">
+                    <label className="field-label" htmlFor="target-city-select">Target City (Live Telemetry Stream)</label>
+                    <div className="select-wrap">
+                      <select id="target-city-select" value={transferTargetCity} onChange={(e) => setTransferTargetCity(e.target.value)}>
+                        {(cities.length ? cities : CITY_CHOICES).map((name) => <option key={`tgt-${name}`}>{name}</option>)}
+                      </select>
+                      <ChevronDown size={16} />
+                    </div>
+                  </div>
+
+                  <p className="form-hint">
+                    <CircleHelp size={14} /> Tests whether {transferSourceCity}'s trained model can predict {transferTargetCity}'s air quality using only {transferTargetCity}'s live Open-Meteo telemetry stream.
+                  </p>
+
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={runLiveTransfer}
+                    disabled={liveTransferBusy}
+                  >
+                    {liveTransferBusy ? <LoaderCircle className="spin" size={17} /> : <Activity size={17} />}
+                    <span>{liveTransferBusy ? 'Running live transfer…' : `Transfer ${transferSourceCity} → ${transferTargetCity}`}</span>
+                    <ArrowUpRight size={16} />
+                  </button>
+                  {liveTransferError && <p className="disabled-reason">{liveTransferError}</p>}
+                </div>
+              </div>
+
+              <div className="result-panel">
+                <div className="panel-top result-top">
+                  <div>
+                    <span className="eyebrow">CROSS-CITY PREDICTION</span>
+                    <h2>{transferSourceCity} → {transferTargetCity}</h2>
+                  </div>
+                  <span className="result-icon"><GitCompareArrows size={20} /></span>
+                </div>
+
+                {liveTransferResult ? (
+                  <div className="result-content">
+                    <div className="result-number">
+                      {liveTransferResult.transferred_forecast_aqi}
+                      <span>AQI</span>
+                    </div>
+                    <div className="category-pill"><span />{liveTransferResult.transferred_category}</div>
+                    <p>{liveTransferResult.advisory}</p>
+                    <div className="validation-note">
+                      <span>TARGET CITY LIVE STREAM</span>
+                      <strong>{liveTransferResult.test_city} · {liveTransferResult.target_current_aqi} AQI ({liveTransferResult.target_current_pm25} µg/m³ PM2.5)</strong>
+                      <small>Observed live on {liveTransferResult.target_observed_date}. Forecast computed without historical training data for {liveTransferResult.test_city}.</small>
+                    </div>
+                    {liveTransferResult.historical_rmse != null && (
+                      <div className="validation-note" style={{ borderLeftColor: '#38bdf8' }}>
+                        <span>HISTORICAL BENCHMARK RMSE</span>
+                        <strong>{liveTransferResult.historical_rmse} AQI points</strong>
+                        <small>Average holdout error achieved by {liveTransferResult.train_city} model when tested on historical {liveTransferResult.test_city} records.</small>
+                      </div>
+                    )}
+                    <small>{liveTransferResult.research_insight}</small>
+                  </div>
+                ) : (
+                  <div className="result-empty">
+                    <div className="air-lines"><span /><span /><span /></div>
+                    <p>Live transfer forecast<br />will appear here.</p>
+                    <small>Click "Transfer {transferSourceCity} → {transferTargetCity}" to run</small>
+                  </div>
+                )}
+                <div className="result-footer">
+                  <span><span className="footer-dot" /> ZERO-SHOT CROSS-CITY INFERENCE</span>
+                  <span>OPEN-METEO 2026</span>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <>
+              <div className="experiment-strip">
+                <span><Microscope size={17} /> HOW TO READ THIS</span>
+                <p>Each row shows a city used for training. Each column shows a city used for testing. A lower RMSE means the estimate was closer to the real AQI. The diagonal compares the model on the same city it trained on.</p>
+              </div>
+              <section className="data-section">
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">PREDICTION ERROR</span>
+                    <h2>Training city compared with testing city</h2>
+                  </div>
+                  {matrix && <span className="dataset-tag">HELD-OUT YEAR · {matrix.test_year}</span>}
+                </div>
+                <div className="table-wrap">
+                  {matrix?.results?.length ? (
+                    <table className="matrix-table">
+                      <thead>
+                        <tr>
+                          <th>TRAIN ↓ / TEST →</th>
+                          {matrix.cities.map((name) => <th key={name}>{name}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {matrix.cities.map((trainCity) => (
+                          <tr key={trainCity}>
+                            <th>{trainCity}</th>
+                            {matrix.cities.map((testCity) => {
+                              const result = matrix.results.find((item) => item.train_city === trainCity && item.test_city === testCity);
+                              return (
+                                <td key={testCity} className={trainCity === testCity ? 'self-cell' : ''}>
+                                  {result ? result.rmse.toFixed(1) : '—'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <EmptyState
+                      icon={GitCompareArrows}
+                      title="Transfer results appear after training data is added"
+                      detail="The matrix is computed from real held-out observations; no sample values are shown."
+                    />
+                  )}
+                </div>
+                <p className="table-caption">Values are RMSE in AQI points: the smaller the number, the closer the prediction. Compare off-diagonal cells to judge how well the model travels to another city.</p>
+              </section>
+            </>
+          )}
+
+          <section className="metrics-row three-stats"><Stat label="TEST METHOD" value="Past → future" note="The model only uses earlier observations" icon={Activity} /><Stat label="CITY NAME" value="Not used" note="The model learns patterns, not labels" icon={GitCompareArrows} /><Stat label="SIMPLE BASELINE" value="Today → tomorrow" note="The latest value becomes the estimate" icon={Gauge} /></section>
+        </>}
 
         {page === 'explain' && <><section className="page-heading compact-heading"><div><div className="eyebrow green-eyebrow"><span className="tiny-line" /> MODEL DETAILS <span className="heading-separator">/</span> INDIA</div><h1>What moves <span>the estimate?</span></h1><p>See which inputs the model uses most, without treating them as causes.</p></div><div className="select-wrap city-small"><select value={city} onChange={(event) => { setCity(event.target.value); setExplanation(null) }}>{(cities.length ? cities : CITY_CHOICES).map((name) => <option key={name}>{name}</option>)}</select><ChevronDown size={16} /></div></section>{error && <div className="alert"><CircleHelp size={17} /><span>{error}</span><button aria-label="Dismiss" onClick={() => setError('')}><X size={15} /></button></div>}<section className="data-section explain-section"><div className="section-heading"><div><span className="eyebrow">MOST USED INPUTS</span><h2>{city} · leading features</h2></div>{explanation && <span className="dataset-tag">{explanation.method.toUpperCase()}</span>}</div>{explanation?.features?.length ? <div className="importance-list">{explanation.features.map((feature, index) => <div className="importance-row" key={feature.feature}><span className="importance-rank">{String(index + 1).padStart(2, '0')}</span><span className="importance-name">{feature.feature.replaceAll('_', ' ')}</span><span className="importance-track"><span style={{ width: `${Math.max(3, feature.importance / explanation.features[0].importance * 100)}%` }} /></span><span className="importance-value">{feature.importance.toFixed(3)}</span></div>)}</div> : <EmptyState icon={BarChart3} title="Train a model to inspect feature importance" detail="The chart will use the fitted model's global importance scores; SHAP-based local explanations are a later research step." />}<div className="notice-line"><CircleHelp size={16} /><p>Importance describes how the fitted model uses features overall. It does not show that a feature causes AQI to change, and it may differ by city.</p></div></section></>}
 
