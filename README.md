@@ -12,6 +12,13 @@ This project brings together:
 
 > Research prototype only. It is designed for demonstration and learning workflows, not as an official public-health advisory.
 
+## Viva presentation guide
+
+A complete viva guide covering the dataset, cleaning, feature engineering, models, metrics, API, frontend, deployment, limitations, and common viva questions is available here:
+
+- [AQI Project Viva Guide (PDF)](docs/AQI_Project_Viva_Guide.pdf)
+- Generator: [docs/generate_viva_pdf.py](docs/generate_viva_pdf.py)
+
 ## Project overview
 
 The system lets a user choose a city, automatically loads recent AQI data from the dataset, and predicts the next day’s AQI. The app hides the technical feature engineering from the end user and keeps the experience simple: select city, click predict, and view the result.
