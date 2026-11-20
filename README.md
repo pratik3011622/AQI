@@ -17,7 +17,8 @@ This project brings together:
 A complete viva guide covering the dataset, cleaning, feature engineering, models, metrics, API, frontend, deployment, limitations, and common viva questions is available here:
 
 - [AQI Project Viva Guide (PDF)](docs/AQI_Project_Viva_Guide.pdf)
-- Generator: [docs/generate_viva_pdf.py](docs/generate_viva_pdf.py)
+- [AQI ML Methodology Viva Guide (PDF)](docs/AQI_ML_Methodology_Viva_Guide.pdf)
+- Generators: [docs/generate_viva_pdf.py](docs/generate_viva_pdf.py) and [docs/generate_ml_viva_pdf.py](docs/generate_ml_viva_pdf.py)
 
 ## Project overview
 
