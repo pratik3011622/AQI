@@ -147,6 +147,7 @@ def predict(request: ForecastRequest):
 
 
 @app.get("/transfer-matrix")
+@lru_cache(maxsize=1)
 def transfer_matrix():
     frame = _data()
     if frame.empty:
@@ -163,11 +164,14 @@ def transfer_matrix():
     from sklearn.pipeline import make_pipeline
     from sklearn.ensemble import RandomForestRegressor
 
-    cities = sorted(set(train_samples["city"]) & set(test_samples["city"]))
+    available = set(train_samples["city"]) & set(test_samples["city"])
+    cities = sorted(set(CITY_COORDINATES) & available)
+    if len(cities) < 2:
+        raise HTTPException(status_code=422, detail="City transfer needs at least two cities with held-out observations.")
     matrix = []
     for train_city in cities:
         training = train_samples[train_samples["city"] == train_city]
-        estimator = make_pipeline(SimpleImputer(strategy="median"), RandomForestRegressor(n_estimators=120, min_samples_leaf=2, random_state=42, n_jobs=-1))
+        estimator = make_pipeline(SimpleImputer(strategy="median"), RandomForestRegressor(n_estimators=30, min_samples_leaf=2, random_state=42, n_jobs=-1))
         estimator.fit(training[FEATURE_COLUMNS], training["target"])
         for test_city in cities:
             testing = test_samples[test_samples["city"] == test_city]
