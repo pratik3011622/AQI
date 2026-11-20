@@ -60,6 +60,14 @@ def _advisory(category: str) -> str:
     }[category]
 
 
+def _find_coordinates(city: str) -> tuple[float, float] | None:
+    target = city.strip().casefold()
+    for name, coords in CITY_COORDINATES.items():
+        if name.casefold() == target:
+            return coords
+    return None
+
+
 @app.get("/health")
 def health():
     metadata = _metadata()
@@ -70,12 +78,17 @@ def health():
 def cities():
     frame = _data()
     available = sorted(frame["city"].dropna().astype(str).unique().tolist()) if not frame.empty else []
-    return {"cities": available, "data_loaded": not frame.empty, "coordinates": {city: CITY_COORDINATES[city] for city in available if city in CITY_COORDINATES}}
+    coords_map = {}
+    for city in available:
+        matched = _find_coordinates(city)
+        if matched:
+            coords_map[city] = matched
+    return {"cities": available, "data_loaded": not frame.empty, "coordinates": coords_map}
 
 
 @app.get("/live/{city}")
 def live_aqi(city: str):
-    coordinates = CITY_COORDINATES.get(city)
+    coordinates = _find_coordinates(city)
     if coordinates is None:
         raise HTTPException(status_code=404, detail=f"Live AQI is available for selected supported cities only. No live coordinates configured for {city}.")
 
@@ -90,6 +103,8 @@ def live_aqi(city: str):
         payload = response.json()
     except requests.RequestException as issue:
         raise HTTPException(status_code=503, detail=f"Live AQI provider is unavailable: {issue}") from issue
+    except (ValueError, KeyError) as issue:
+        raise HTTPException(status_code=502, detail=f"Invalid response from live AQI provider: {issue}") from issue
 
     current = payload.get("current", {})
     if current.get("us_aqi") is None:

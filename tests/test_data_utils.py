@@ -57,6 +57,15 @@ class FeatureIntegrityTests(unittest.TestCase):
         self.assertEqual(aqi_category(101), "Moderate")
         self.assertEqual(aqi_category(401), "Severe")
 
+    def test_city_coordinates_case_insensitive_lookup(self):
+        from backend.main import _find_coordinates
+        self.assertIsNotNone(_find_coordinates("Delhi"))
+        self.assertIsNotNone(_find_coordinates("delhi"))
+        self.assertIsNotNone(_find_coordinates("DELHI "))
+        self.assertIsNotNone(_find_coordinates("Jaipur"))
+        self.assertIsNone(_find_coordinates("NonExistentCityXYZ"))
+
+
 
 if __name__ == "__main__":
     unittest.main()

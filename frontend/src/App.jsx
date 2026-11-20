@@ -85,6 +85,8 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [live, setLive] = useState(null)
+  const [liveLoading, setLiveLoading] = useState(false)
+  const [liveError, setLiveError] = useState('')
   const [form, setForm] = useState({ aqi_history: [] })
   const comparisonCity = cities.find((item) => item.toLowerCase() === compareCity.toLowerCase() && item.toLowerCase() !== city.toLowerCase()) || cities.find((item) => item.toLowerCase() !== city.toLowerCase()) || ''
 
@@ -116,7 +118,24 @@ function App() {
   useEffect(() => {
     if (page !== 'forecast') return
     setLive(null)
-    api(`/live/${encodeURIComponent(city)}`).then(setLive).catch(() => setLive(null))
+    setLiveError('')
+    setLiveLoading(true)
+    let active = true
+    api(`/live/${encodeURIComponent(city)}`)
+      .then((data) => {
+        if (!active) return
+        setLive(data)
+        setLiveError('')
+      })
+      .catch((err) => {
+        if (!active) return
+        setLive(null)
+        setLiveError(err.message || 'Live AQI unavailable')
+      })
+      .finally(() => {
+        if (active) setLiveLoading(false)
+      })
+    return () => { active = false }
   }, [city, page])
 
   useEffect(() => {
@@ -203,7 +222,37 @@ function App() {
                   <button type="button" className="secondary-button" onClick={applyDemoInputs}>Try demo values</button>
                   <button type="button" className="ghost-button" onClick={resetInputs}>Reset</button>
                 </div>
-                {live && <div className="mini-history-card"><div className="mini-history-header"><span className="eyebrow">LIVE CURRENT AQI</span><span className="mini-badge">{live.scale}</span></div><div className="live-reading"><strong>{live.current_aqi}</strong><span>{live.source}<small>{live.observed_at}</small></span></div></div>}
+                {liveLoading ? (
+                  <div className="mini-history-card">
+                    <div className="mini-history-header">
+                      <span className="eyebrow">LIVE CURRENT AQI</span>
+                      <span className="mini-badge">Fetching</span>
+                    </div>
+                    <p className="form-hint muted-text"><LoaderCircle className="spin" size={14} /> Fetching live reading for {city}...</p>
+                  </div>
+                ) : live ? (
+                  <div className="mini-history-card">
+                    <div className="mini-history-header">
+                      <span className="eyebrow">LIVE CURRENT AQI</span>
+                      <span className="mini-badge">{live.scale}</span>
+                    </div>
+                    <div className="live-reading">
+                      <strong>{live.current_aqi}</strong>
+                      <span>{live.source}<small>{live.observed_at ? new Date(live.observed_at).toLocaleString('en-IN') : ''}</small></span>
+                    </div>
+                  </div>
+                ) : liveError ? (
+                  <div className="mini-history-card">
+                    <div className="mini-history-header">
+                      <span className="eyebrow">LIVE CURRENT AQI</span>
+                      <span className="mini-badge">Unavailable</span>
+                    </div>
+                    <p className="form-hint muted-text" style={{ margin: 0, fontSize: '11px' }}>
+                      <CircleHelp size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                      {liveError}
+                    </p>
+                  </div>
+                ) : null}
                 <p className="form-hint"><CircleHelp size={14} /> Choose a city for a live reading and a separate historical next-day model estimate.</p>
                 <button className="primary-button" type="submit" disabled={busy || apiState !== 'ready'}>{busy ? <LoaderCircle className="spin" size={17} /> : <Activity size={17} />}<span>{busy ? 'Estimating…' : 'Estimate next day'}</span><ArrowUpRight size={16} /></button>
                 {apiState !== 'ready' && <p className="disabled-reason">{apiState === 'offline' ? 'Start the API to enable forecasts.' : 'Add data and train a model to enable forecasts.'}</p>}
