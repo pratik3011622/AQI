@@ -16,6 +16,7 @@ models/*
 !models/README.md
 results/*
 !results/README.md
+!results/transfer_matrix.json
 *.joblib
 
 # Deployment artifacts required by the hosted API.

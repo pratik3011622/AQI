@@ -1,0 +1,399 @@
+{
+  "test_year": 2025,
+  "cities": [
+    "Ahmedabad",
+    "Bengaluru",
+    "Chennai",
+    "Delhi",
+    "Hyderabad",
+    "Kolkata",
+    "Mumbai",
+    "Pune"
+  ],
+  "results": [
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Ahmedabad",
+      "rmse": 28.79,
+      "n_test": 120
+    },
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Bengaluru",
+      "rmse": 14.53,
+      "n_test": 120
+    },
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Chennai",
+      "rmse": 19.79,
+      "n_test": 120
+    },
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Delhi",
+      "rmse": 44.25,
+      "n_test": 120
+    },
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Hyderabad",
+      "rmse": 12.43,
+      "n_test": 120
+    },
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Kolkata",
+      "rmse": 23.68,
+      "n_test": 120
+    },
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Mumbai",
+      "rmse": 16.5,
+      "n_test": 120
+    },
+    {
+      "train_city": "Ahmedabad",
+      "test_city": "Pune",
+      "rmse": 17.08,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Ahmedabad",
+      "rmse": 32.49,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Bengaluru",
+      "rmse": 11.38,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Chennai",
+      "rmse": 17.15,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Delhi",
+      "rmse": 64.07,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Hyderabad",
+      "rmse": 8.87,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Kolkata",
+      "rmse": 26.72,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Mumbai",
+      "rmse": 18.38,
+      "n_test": 120
+    },
+    {
+      "train_city": "Bengaluru",
+      "test_city": "Pune",
+      "rmse": 24.23,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Ahmedabad",
+      "rmse": 31.33,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Bengaluru",
+      "rmse": 11.92,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Chennai",
+      "rmse": 16.64,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Delhi",
+      "rmse": 54.19,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Hyderabad",
+      "rmse": 8.98,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Kolkata",
+      "rmse": 24.62,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Mumbai",
+      "rmse": 16.27,
+      "n_test": 120
+    },
+    {
+      "train_city": "Chennai",
+      "test_city": "Pune",
+      "rmse": 20.58,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Ahmedabad",
+      "rmse": 31.82,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Bengaluru",
+      "rmse": 19.45,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Chennai",
+      "rmse": 24.57,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Delhi",
+      "rmse": 42.2,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Hyderabad",
+      "rmse": 17.25,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Kolkata",
+      "rmse": 26.91,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Mumbai",
+      "rmse": 20.75,
+      "n_test": 120
+    },
+    {
+      "train_city": "Delhi",
+      "test_city": "Pune",
+      "rmse": 19.95,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Ahmedabad",
+      "rmse": 30.16,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Bengaluru",
+      "rmse": 12.14,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Chennai",
+      "rmse": 17.87,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Delhi",
+      "rmse": 48.4,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Hyderabad",
+      "rmse": 9.29,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Kolkata",
+      "rmse": 24.07,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Mumbai",
+      "rmse": 16.41,
+      "n_test": 120
+    },
+    {
+      "train_city": "Hyderabad",
+      "test_city": "Pune",
+      "rmse": 18.23,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Ahmedabad",
+      "rmse": 29.32,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Bengaluru",
+      "rmse": 15.3,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Chennai",
+      "rmse": 20.05,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Delhi",
+      "rmse": 42.57,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Hyderabad",
+      "rmse": 13.0,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Kolkata",
+      "rmse": 23.27,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Mumbai",
+      "rmse": 16.79,
+      "n_test": 120
+    },
+    {
+      "train_city": "Kolkata",
+      "test_city": "Pune",
+      "rmse": 18.0,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Ahmedabad",
+      "rmse": 29.4,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Bengaluru",
+      "rmse": 12.94,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Chennai",
+      "rmse": 17.87,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Delhi",
+      "rmse": 41.89,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Hyderabad",
+      "rmse": 10.36,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Kolkata",
+      "rmse": 23.1,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Mumbai",
+      "rmse": 16.01,
+      "n_test": 120
+    },
+    {
+      "train_city": "Mumbai",
+      "test_city": "Pune",
+      "rmse": 17.89,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Ahmedabad",
+      "rmse": 29.59,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Bengaluru",
+      "rmse": 13.57,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Chennai",
+      "rmse": 18.89,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Delhi",
+      "rmse": 44.52,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Hyderabad",
+      "rmse": 11.76,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Kolkata",
+      "rmse": 24.34,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Mumbai",
+      "rmse": 16.94,
+      "n_test": 120
+    },
+    {
+      "train_city": "Pune",
+      "test_city": "Pune",
+      "rmse": 17.13,
+      "n_test": 120
+    }
+  ]
+}

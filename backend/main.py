@@ -149,6 +149,10 @@ def predict(request: ForecastRequest):
 @app.get("/transfer-matrix")
 @lru_cache(maxsize=1)
 def transfer_matrix():
+    static_path = METADATA_PATH.parent.parent / "results" / "transfer_matrix.json"
+    if static_path.exists():
+        return json.loads(static_path.read_text(encoding="utf-8"))
+
     frame = _data()
     if frame.empty:
         raise HTTPException(status_code=503, detail="Add a city-day CSV to data/raw to calculate transfer results.")
@@ -162,7 +166,8 @@ def transfer_matrix():
     from sklearn.impute import SimpleImputer
     from sklearn.metrics import mean_squared_error
     from sklearn.pipeline import make_pipeline
-    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.linear_model import Ridge
+    from sklearn.preprocessing import StandardScaler
 
     available = set(train_samples["city"]) & set(test_samples["city"])
     cities = sorted(set(CITY_COORDINATES) & available)
@@ -171,7 +176,7 @@ def transfer_matrix():
     matrix = []
     for train_city in cities:
         training = train_samples[train_samples["city"] == train_city]
-        estimator = make_pipeline(SimpleImputer(strategy="median"), RandomForestRegressor(n_estimators=30, min_samples_leaf=2, random_state=42, n_jobs=-1))
+        estimator = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=10.0))
         estimator.fit(training[FEATURE_COLUMNS], training["target"])
         for test_city in cities:
             testing = test_samples[test_samples["city"] == test_city]
