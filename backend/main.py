@@ -8,6 +8,7 @@ from functools import lru_cache
 import joblib
 import numpy as np
 import pandas as pd
+import requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -70,6 +71,38 @@ def cities():
     frame = _data()
     available = sorted(frame["city"].dropna().astype(str).unique().tolist()) if not frame.empty else []
     return {"cities": available, "data_loaded": not frame.empty, "coordinates": {city: CITY_COORDINATES[city] for city in available if city in CITY_COORDINATES}}
+
+
+@app.get("/live/{city}")
+def live_aqi(city: str):
+    coordinates = CITY_COORDINATES.get(city)
+    if coordinates is None:
+        raise HTTPException(status_code=404, detail=f"Live AQI is available for selected supported cities only. No live coordinates configured for {city}.")
+
+    latitude, longitude = coordinates
+    try:
+        response = requests.get(
+            "https://air-quality-api.open-meteo.com/v1/air-quality",
+            params={"latitude": latitude, "longitude": longitude, "current": "us_aqi", "timezone": "Asia/Kolkata"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except requests.RequestException as issue:
+        raise HTTPException(status_code=503, detail=f"Live AQI provider is unavailable: {issue}") from issue
+
+    current = payload.get("current", {})
+    if current.get("us_aqi") is None:
+        raise HTTPException(status_code=503, detail="The live AQI provider did not return a current US AQI value.")
+
+    return {
+        "city": city,
+        "current_aqi": float(current["us_aqi"]),
+        "observed_at": current.get("time"),
+        "scale": "US AQI",
+        "source": "Open-Meteo Air Quality API",
+        "note": "Live reading; not the historical Indian AQI scale used to train the XGBoost model.",
+    }
 
 
 @app.get("/history/{city}")
