@@ -2,7 +2,6 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 
 OUTPUT = "docs/AQI_ML_Pipeline_and_Model_Comparison_Guide.pdf"
@@ -10,47 +9,60 @@ OUTPUT = "docs/AQI_ML_Pipeline_and_Model_Comparison_Guide.pdf"
 styles = getSampleStyleSheet()
 
 styles.add(ParagraphStyle(
-    name="CoverPre", fontName="Helvetica-Bold", fontSize=10, leading=13,
+    name="CoverPre", fontName="Helvetica-Bold", fontSize=9.5, leading=13,
     alignment=TA_CENTER, textColor=colors.HexColor("#176b60")
 ))
 styles.add(ParagraphStyle(
-    name="CoverTitle", fontName="Helvetica-Bold", fontSize=21, leading=26,
+    name="CoverTitle", fontName="Helvetica-Bold", fontSize=19, leading=24,
     alignment=TA_CENTER, textColor=colors.HexColor("#12352f")
 ))
 styles.add(ParagraphStyle(
-    name="CoverSubtitle", fontName="Helvetica", fontSize=11, leading=15,
+    name="CoverSubtitle", fontName="Helvetica", fontSize=10.5, leading=14.5,
     alignment=TA_CENTER, textColor=colors.HexColor("#344c48")
 ))
 styles.add(ParagraphStyle(
-    name="CoverURL", fontName="Courier-Bold", fontSize=9, leading=12,
+    name="CoverURL", fontName="Courier-Bold", fontSize=8.5, leading=11.5,
     alignment=TA_CENTER, textColor=colors.HexColor("#0f5146")
 ))
 
 styles.add(ParagraphStyle(
-    name="H1X", fontName="Helvetica-Bold", fontSize=13.5, leading=17,
-    textColor=colors.HexColor("#176b60"), spaceBefore=11, spaceAfter=5, keepWithNext=True
+    name="H1X", fontName="Helvetica-Bold", fontSize=12.5, leading=16,
+    textColor=colors.HexColor("#176b60"), spaceBefore=10, spaceAfter=4, keepWithNext=True
 ))
 styles.add(ParagraphStyle(
-    name="H2X", fontName="Helvetica-Bold", fontSize=10, leading=13.5,
-    textColor=colors.HexColor("#203b38"), spaceBefore=7, spaceAfter=3, keepWithNext=True
+    name="H2X", fontName="Helvetica-Bold", fontSize=9.5, leading=13,
+    textColor=colors.HexColor("#203b38"), spaceBefore=6, spaceAfter=2.5, keepWithNext=True
 ))
 styles.add(ParagraphStyle(
-    name="BodyX", fontName="Helvetica", fontSize=8.5, leading=11.8,
-    textColor=colors.HexColor("#243130"), alignment=TA_JUSTIFY, spaceAfter=3.5
+    name="BodyX", fontName="Helvetica", fontSize=8.3, leading=11.6,
+    textColor=colors.HexColor("#243130"), alignment=TA_JUSTIFY, spaceAfter=3
 ))
 styles.add(ParagraphStyle(
-    name="SmallX", fontName="Helvetica", fontSize=7.4, leading=9.5,
+    name="SmallX", fontName="Helvetica", fontSize=7.2, leading=9.2,
     textColor=colors.HexColor("#53615f")
 ))
 styles.add(ParagraphStyle(
-    name="Callout", fontName="Helvetica-Oblique", fontSize=8.2, leading=11.2,
+    name="Callout", fontName="Helvetica-Oblique", fontSize=8, leading=11,
     textColor=colors.HexColor("#134e44"), backColor=colors.HexColor("#eef5f2"),
     borderPadding=5, spaceBefore=3, spaceAfter=4
 ))
 styles.add(ParagraphStyle(
-    name="CodeSnippet", fontName="Courier", fontSize=6.8, leading=8.8,
+    name="CodeSnippet", fontName="Courier", fontSize=6.5, leading=8.4,
     textColor=colors.HexColor("#143b35"), backColor=colors.HexColor("#f0f5f2"),
-    borderPadding=5, spaceBefore=3, spaceAfter=4
+    borderPadding=4.5, spaceBefore=2.5, spaceAfter=3.5
+))
+
+styles.add(ParagraphStyle(
+    name="TableHeader", fontName="Helvetica-Bold", fontSize=7.2, leading=9.5,
+    textColor=colors.white, alignment=TA_LEFT
+))
+styles.add(ParagraphStyle(
+    name="TableCell", fontName="Helvetica", fontSize=6.8, leading=9.2,
+    textColor=colors.HexColor("#243130"), alignment=TA_LEFT
+))
+styles.add(ParagraphStyle(
+    name="TableCellBold", fontName="Helvetica-Bold", fontSize=6.8, leading=9.2,
+    textColor=colors.HexColor("#12352f"), alignment=TA_LEFT
 ))
 
 def P(text, style="BodyX"):
@@ -59,16 +71,27 @@ def P(text, style="BodyX"):
 def bullet(text):
     return Paragraph("<b>•</b> " + text, styles["BodyX"])
 
-def make_table(data, widths=None, font=7.5, header_bg="#173b37"):
-    t = Table(data, colWidths=widths, repeatRows=1)
+def make_table(data, widths=None, header_bg="#173b37"):
+    formatted_data = []
+    for row_idx, row in enumerate(data):
+        formatted_row = []
+        for col_idx, cell in enumerate(row):
+            if isinstance(cell, str):
+                if row_idx == 0:
+                    formatted_row.append(Paragraph(cell, styles["TableHeader"]))
+                elif col_idx == 0:
+                    formatted_row.append(Paragraph(cell, styles["TableCellBold"]))
+                else:
+                    formatted_row.append(Paragraph(cell, styles["TableCell"]))
+            else:
+                formatted_row.append(cell)
+        formatted_data.append(formatted_row)
+        
+    t = Table(formatted_data, colWidths=widths, repeatRows=1)
     t.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.HexColor(header_bg)),
-        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("FONTNAME", (0,1), (-1,-1), "Helvetica"),
-        ("FONTSIZE", (0,0), (-1,-1), font),
         ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#becbc6")),
-        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
         ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f4f7f5")]),
         ("LEFTPADDING", (0,0), (-1,-1), 4.5),
         ("RIGHTPADDING", (0,0), (-1,-1), 4.5),
@@ -78,24 +101,22 @@ def make_table(data, widths=None, font=7.5, header_bg="#173b37"):
     return t
 
 doc = SimpleDocTemplate(
-    OUTPUT, pagesize=A4, rightMargin=34, leftMargin=34, topMargin=34, bottomMargin=34
+    OUTPUT, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=52, bottomMargin=52
 )
 story = []
 
 # --- TITLE BLOCK ---
 story += [
-    Spacer(1, 0.15 * inch),
     P("TECHNICAL MACHINE LEARNING SPECIFICATION & VIVA DEEP DIVE", "CoverPre"),
-    Spacer(1, 0.06 * inch),
+    Spacer(1, 4),
     P("Machine Learning Architecture, Model Comparison & Code Walkthrough", "CoverTitle"),
-    Spacer(1, 0.06 * inch),
+    Spacer(1, 4),
     P("From Raw CPCB Ingestion & Strict Past Lags to Multi-Model Evaluation and FastAPI Inference", "CoverSubtitle"),
-    Spacer(1, 0.06 * inch),
+    Spacer(1, 4),
     P("Project: Can Delhi Teach Surat? | AQI Research Lab", "CoverURL"),
-    Spacer(1, 0.12 * inch),
+    Spacer(1, 8),
 ]
 
-# Pipeline Overview Table
 pipeline_summary = [
     ["ML Stage", "Primary Source File", "Mathematical / Algorithmic Core", "Key Artifact / Output"],
     ["1. Ingestion & Cleaning", "src/data_utils.py", "Schema alias regex lookup, date sorting, <=3-day interpolation", "Clean chronological city-day dataframe"],
@@ -107,7 +128,7 @@ pipeline_summary = [
     ["7. Live API Serving", "backend/main.py", "FastAPI inference with automatic 7-day lag reconstruction", "REST endpoints: /predict & /explain"],
     ["8. Transfer Matrix", "src/experiments.py", "Zero-shot cross-city evaluation and few-shot calibration (30/60/90d)", "results/transfer_matrix.csv & few_shot.csv"]
 ]
-story += [make_table(pipeline_summary, widths=[85, 95, 195, 145], font=7), Spacer(1, 0.12 * inch)]
+story += [make_table(pipeline_summary, widths=[80, 95, 185, 155]), Spacer(1, 8)]
 
 # --- SECTION 1: DATA CLEANING & NORMALIZATION ---
 story += [
@@ -116,7 +137,7 @@ story += [
     bullet("<b>Schema Aliasing (<code>normalize_columns</code>):</b> Maps variable headers (e.g. <code>area</code>, <code>location</code>, <code>station</code> -> <code>city</code>; <code>aqi_value</code>, <code>index</code>, <code>AQI</code> -> <code>aqi</code>) using regex string normalization."),
     bullet("<b>Date Parsing & Sorting:</b> Parses dates with <code>dayfirst=True</code> to prevent lexicographical month-day inversion. Rows are deduplicated on <code>(city, date)</code> and sorted chronologically."),
     bullet("<b>Short-Gap Linear Interpolation:</b> To preserve physical time series continuity without hallucinating synthetic trends, missing dates within a city are linearly interpolated <i>only if the gap is <= 3 consecutive days</i>. Larger gaps are retained as missing."),
-    Spacer(1, 0.04 * inch),
+    Spacer(1, 4),
     P("<b>Core Data Cleaning Code Snippet:</b>", "SmallX"),
     P("""# src/data_utils.py
 def load_daily_data(data_path: str | Path | None = None) -> pd.DataFrame:
@@ -136,7 +157,7 @@ story += [PageBreak()]
 story += [
     P("2. Strict Past-Only Feature Engineering (src/data_utils.py & src/config.py)", "H1X"),
     P("To prevent lookahead data leakage, every sample feature must only use observations strictly prior to the forecast window. The pipeline produces <b>29 feature columns</b>:"),
-    Spacer(1, 0.04 * inch)
+    Spacer(1, 4)
 ]
 
 feat_table = [
@@ -147,15 +168,15 @@ feat_table = [
     ["Cyclical Calendar Harmonics", "month_sin, month_cos, weekday_sin, weekday_cos", "sin(2*pi*m/12), cos(2*pi*m/12), sin(2*pi*w/7), cos(2*pi*w/7). Encodes annual winter inversions and weekend traffic patterns cyclically."],
     ["Optional Pollutants & Weather", "pm10, no2, so2, co, o3, temp, humidity, wind, pressure", "Surface meteorological parameters and secondary criteria gaseous pollutants."]
 ]
-story += [make_table(feat_table, widths=[100, 150, 270], font=7), Spacer(1, 0.06 * inch)]
+story += [make_table(feat_table, widths=[100, 140, 275]), Spacer(1, 6)]
 
 story += [
     P("<b>The Shift Logic (No Future Leakage):</b>", "H2X"),
     P("In pandas, features are created using <code>city_frame['aqi'].shift(lag)</code> where <code>lag >= 0</code>, while the forecasting target is shifted backwards: <code>city_frame['target'] = city_frame['aqi'].shift(-1)</code>. Thus, sample <i>t</i> predicts target <i>t+1</i> using only past information."),
-    Spacer(1, 0.04 * inch),
+    Spacer(1, 4),
     P("<b>Why City Identity is Excluded:</b>", "H2X"),
     P("<code>CITY_COLUMN ('city')</code> is <b>never</b> included in <code>FEATURE_COLUMNS</code>. If one-hot city indicators were provided, tree algorithms would learn local sensor biases rather than meteorological dynamics, completely preventing zero-shot cross-city transfer to new cities."),
-    Spacer(1, 0.04 * inch),
+    Spacer(1, 4),
     P("<b>Feature Formulation Code:</b>", "SmallX"),
     P("""# src/data_utils.py (inside build_features)
 aqi = city_frame['aqi'].astype(float)
@@ -183,7 +204,7 @@ story += [PageBreak()]
 story += [
     P("3. Multi-Model Candidates & Training Architecture (src/train.py)", "H1X"),
     P("The project constructs scikit-learn pipelines with a median imputer for candidate models, tested against a naive persistence baseline:"),
-    Spacer(1, 0.04 * inch)
+    Spacer(1, 4)
 ]
 
 candidate_desc = [
@@ -193,12 +214,12 @@ candidate_desc = [
     ["Random Forest", "make_pipeline(SimpleImputer(strategy='median'), RandomForestRegressor(n_estimators=300, min_samples_leaf=2, max_features=0.8, random_state=42, n_jobs=-1))", "Bagging ensemble of decision trees. Reduces variance, models non-linear interactions, and handles feature collinearity."],
     ["XGBoost Regressor (Selected Best)", "make_pipeline(SimpleImputer(strategy='median'), XGBRegressor(n_estimators=400, max_depth=5, learning_rate=0.04, subsample=0.85, colsample_bytree=0.85, objective='reg:squarederror', random_state=42, n_jobs=-1))", "Gradient boosting ensemble. Optimizes 2nd-order Taylor loss expansions; excels at capturing sharp winter inversion thresholds."]
 ]
-story += [make_table(candidate_desc, widths=[105, 235, 180], font=7), Spacer(1, 0.1 * inch)]
+story += [make_table(candidate_desc, widths=[100, 230, 185]), Spacer(1, 8)]
 
 story += [
     P("4. Empirical Model Comparison Results (Held-Out Test Year: 2025)", "H1X"),
     P("The models were trained on <b>210,725 rows</b> (pre-2025 across 291 cities) and evaluated on <b>28,149 unseen rows</b> in the held-out test year 2025. Here are the exact audited scores from <code>models/metadata.json</code>:"),
-    Spacer(1, 0.04 * inch)
+    Spacer(1, 4)
 ]
 
 empirical_results = [
@@ -208,7 +229,7 @@ empirical_results = [
     ["Random Forest", "20.55", "30.12", "0.7049", "73.11%", "0.4942", "High memory footprint (~140MB serialized)"],
     ["XGBoost (WINNER)", "20.22", "29.82", "0.7107", "73.97%", "0.5025", "SELECTED: Lowest RMSE/MAE, highest R² & Accuracy"]
 ]
-story += [make_table(empirical_results, widths=[110, 60, 65, 55, 80, 55, 95], font=7), Spacer(1, 0.08 * inch)]
+story += [make_table(empirical_results, widths=[105, 55, 60, 50, 75, 55, 115]), Spacer(1, 6)]
 
 story += [
     P("<b>Why XGBoost Was Selected:</b>"),
@@ -224,7 +245,7 @@ story += [PageBreak()]
 story += [
     P("5. Model Selection & Serialization Code (src/train.py)", "H1X"),
     P("How candidates are trained, evaluated on the chronological split, and the winner saved to disk:"),
-    Spacer(1, 0.04 * inch),
+    Spacer(1, 4),
     P("""# src/train.py
 def train(data_path: str | None = None, test_year: int | None = None) -> dict:
     raw = load_daily_data(data_path)
@@ -257,11 +278,11 @@ def train(data_path: str | None = None, test_year: int | None = None) -> dict:
     joblib.dump(best, MODEL_PATH)              # models/best_model.joblib
     METADATA_PATH.write_text(json.dumps(metadata, indent=2))
     return metadata""", "CodeSnippet"),
-    Spacer(1, 0.08 * inch),
+    Spacer(1, 6),
 
     P("6. Metrics Computation Code (src/evaluate.py)", "H1X"),
     P("How numeric accuracy and official CPCB band classifications are computed:"),
-    Spacer(1, 0.04 * inch),
+    Spacer(1, 4),
     P("""# src/evaluate.py
 def aqi_category(value: float) -> str:
     if value <= 50:  return "Good"
@@ -292,7 +313,7 @@ story += [PageBreak()]
 story += [
     P("7. Live Inference & Feature Importance Serving (backend/main.py)", "H1X"),
     P("How the trained XGBoost model is loaded into memory and invoked for single-click predictions:"),
-    Spacer(1, 0.04 * inch),
+    Spacer(1, 4),
     P("""# backend/main.py
 @lru_cache(maxsize=1)
 def _model():
@@ -323,13 +344,13 @@ def predict(request: ForecastRequest):
     estimate = max(0.0, float(model.predict(pd.DataFrame([row], columns=FEATURE_COLUMNS))[0]))
     category = aqi_category(estimate)
     return {"city": request.city, "forecast_aqi": round(estimate, 1), "category": category, ...}""", "CodeSnippet"),
-    Spacer(1, 0.08 * inch),
+    Spacer(1, 6),
 
     P("8. Cross-City Transfer & Few-Shot Adaptation (src/experiments.py)", "H1X"),
     P("The experimental core testing whether models trained on one city can predict unseen cities:"),
     bullet("<b>Zero-Shot Transfer (<code>run_transfer</code>):</b> Trains an estimator exclusively on <code>train_city</code> and evaluates it on <code>test_city</code> without any retraining."),
     bullet("<b>Few-Shot Adaptation (<code>run_few_shot</code>):</b> Tests how adding 30, 60, or 90 days of local target-city adaptation data reduces transfer error:"),
-    Spacer(1, 0.04 * inch),
+    Spacer(1, 4),
     P("""# src/experiments.py
 def run_few_shot(data_path=None, test_year=None, days=(30, 60, 90)):
     # Evaluates error reduction when a globally trained model receives local fine-tuning:
@@ -347,15 +368,15 @@ def add_header_footer(canvas, doc):
     canvas.saveState()
     canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(colors.HexColor("#65736f"))
-    canvas.drawString(34, A4[1] - 22, "Can Delhi Teach Surat? | AQI Research Lab — ML Pipeline & Code Specification")
-    canvas.drawRightString(A4[0] - 34, A4[1] - 22, "Core ML Pipeline Guide")
+    canvas.drawString(40, A4[1] - 25, "Can Delhi Teach Surat? | AQI Research Lab — ML Pipeline & Code Specification")
+    canvas.drawRightString(A4[0] - 40, A4[1] - 25, "Core ML Pipeline Guide")
     canvas.setStrokeColor(colors.HexColor("#d5deda"))
     canvas.setLineWidth(0.5)
-    canvas.line(34, A4[1] - 26, A4[0] - 34, A4[1] - 26)
-    canvas.line(34, 28, A4[0] - 34, 28)
-    canvas.drawString(34, 17, "Technical Code Specification · Machine Learning Engineering Lifecycle")
-    canvas.drawRightString(A4[0] - 34, 17, f"Page {doc.page}")
+    canvas.line(40, A4[1] - 30, A4[0] - 40, A4[1] - 30)
+    canvas.line(40, 36, A4[0] - 40, 36)
+    canvas.drawString(40, 22, "Technical Code Specification · Machine Learning Engineering Lifecycle")
+    canvas.drawRightString(A4[0] - 40, 22, f"Page {doc.page}")
     canvas.restoreState()
 
 doc.build(story, onFirstPage=add_header_footer, onLaterPages=add_header_footer)
-print("SUCCESS: Generated " + OUTPUT)
+print("SUCCESS: Cleanly generated " + OUTPUT)
