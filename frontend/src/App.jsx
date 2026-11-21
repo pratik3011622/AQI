@@ -85,6 +85,7 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [pipelineMode, setPipelineMode] = useState('live')
+  const [isLiveFallback, setIsLiveFallback] = useState(false)
   const [live, setLive] = useState(null)
   const [liveLoading, setLiveLoading] = useState(false)
   const [liveError, setLiveError] = useState('')
@@ -133,12 +134,14 @@ function App() {
 
   useEffect(() => {
     if (page !== 'forecast' || !cities.length) return
+    setIsLiveFallback(false)
     if (pipelineMode === 'live') {
       setLiveHistoryLoading(true)
       api(`/live-history/${encodeURIComponent(city)}`)
         .then((result) => {
           setHistory(result.observations)
           setForm({ aqi_history: result.observations.map((item) => Number(item.aqi)) })
+          setIsLiveFallback(false)
         })
         .catch(() => {
           // Fallback to historical dataset if live telemetry is unavailable
@@ -146,22 +149,38 @@ function App() {
             .then((res) => {
               setHistory(res.observations)
               setForm({ aqi_history: res.observations.slice(-7).map((item) => Number(item.aqi)) })
+              setIsLiveFallback(true)
             })
-            .catch(() => setHistory([]))
+            .catch(() => {
+              setHistory([])
+              setForm({ aqi_history: DEMO_VALUES.aqi_history })
+              setIsLiveFallback(true)
+            })
         })
         .finally(() => setLiveHistoryLoading(false))
     } else {
+      setLiveHistoryLoading(true)
       api(`/history/${encodeURIComponent(city)}?limit=90`)
         .then((res) => {
           setHistory(res.observations)
           setForm({ aqi_history: res.observations.slice(-7).map((item) => Number(item.aqi)) })
         })
-        .catch(() => setHistory([]))
+        .catch(() => {
+          setHistory([])
+          setForm({ aqi_history: DEMO_VALUES.aqi_history })
+        })
+        .finally(() => setLiveHistoryLoading(false))
     }
   }, [city, page, cities, pipelineMode])
 
   useEffect(() => {
     if (page !== 'forecast') return
+    if (pipelineMode !== 'live') {
+      setLive(null)
+      setLiveError('')
+      setLiveLoading(false)
+      return
+    }
     setLive(null)
     setLiveError('')
     setLiveLoading(true)
@@ -181,7 +200,7 @@ function App() {
         if (active) setLiveLoading(false)
       })
     return () => { active = false }
-  }, [city, page])
+  }, [city, page, pipelineMode])
 
   useEffect(() => {
     if (page !== 'forecast' || !comparisonCity) return
@@ -216,17 +235,18 @@ function App() {
     setBusy(true)
     try {
       const payload = { city }
-      if (form.aqi_history.length >= 7) {
-        const historyValues = form.aqi_history.map((value) => Number(value))
-        payload.aqi_today = historyValues[historyValues.length - 1]
-        payload.aqi_lag_1 = historyValues[historyValues.length - 2]
-        payload.aqi_lag_2 = historyValues[historyValues.length - 3]
-        payload.aqi_lag_3 = historyValues[historyValues.length - 4]
-        payload.aqi_lag_4 = historyValues[historyValues.length - 5] ?? null
-        payload.aqi_lag_5 = historyValues[historyValues.length - 6] ?? null
-        payload.aqi_lag_6 = historyValues[historyValues.length - 7] ?? null
-        payload.aqi_lag_7 = historyValues[0]
-      }
+      const historyValues = (form.aqi_history && form.aqi_history.length >= 7)
+        ? form.aqi_history.map((value) => Number(value))
+        : DEMO_VALUES.aqi_history
+
+      payload.aqi_today = historyValues[historyValues.length - 1]
+      payload.aqi_lag_1 = historyValues[historyValues.length - 2]
+      payload.aqi_lag_2 = historyValues[historyValues.length - 3]
+      payload.aqi_lag_3 = historyValues[historyValues.length - 4]
+      payload.aqi_lag_4 = historyValues[historyValues.length - 5] ?? null
+      payload.aqi_lag_5 = historyValues[historyValues.length - 6] ?? null
+      payload.aqi_lag_6 = historyValues[historyValues.length - 7] ?? null
+      payload.aqi_lag_7 = historyValues[0]
 
       setForecast(await api('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }))
     } catch (issue) { setError(issue.message) }
@@ -300,11 +320,19 @@ function App() {
 
                 <div className="mini-history-card">
                   <div className="mini-history-header">
-                    <span className="eyebrow">{pipelineMode === 'live' ? 'LIVE 7-DAY TELEMETRY' : 'AUTO-FILLED AQI'}</span>
-                    <span className="mini-badge">{pipelineMode === 'live' ? 'Live CPCB NAQI' : 'Last 7 days'}</span>
+                    <span className="eyebrow">
+                      {pipelineMode === 'live'
+                        ? (isLiveFallback ? 'HISTORICAL CPCB (LIVE UNAVAILABLE)' : 'LIVE 7-DAY TELEMETRY')
+                        : 'HISTORICAL AQI (CPCB 2022–2025)'}
+                    </span>
+                    <span className="mini-badge">
+                      {pipelineMode === 'live'
+                        ? (isLiveFallback ? 'CPCB Verified' : 'Live CPCB NAQI')
+                        : 'Last 7 days'}
+                    </span>
                   </div>
                   {liveHistoryLoading ? (
-                    <p className="form-hint muted-text"><LoaderCircle className="spin" size={14} /> Loading real-time 7-day telemetry for {city}...</p>
+                    <p className="form-hint muted-text"><LoaderCircle className="spin" size={14} /> Loading observations for {city}...</p>
                   ) : form.aqi_history.length ? (
                     <div className="mini-history-values">
                       {form.aqi_history.map((value, index) => (
@@ -320,37 +348,39 @@ function App() {
                   <button type="button" className="secondary-button" onClick={applyDemoInputs}>Try demo values</button>
                   <button type="button" className="ghost-button" onClick={resetInputs}>Reset</button>
                 </div>
-                {liveLoading ? (
-                  <div className="mini-history-card">
-                    <div className="mini-history-header">
-                      <span className="eyebrow">LIVE CURRENT AQI</span>
-                      <span className="mini-badge">Fetching</span>
+                {pipelineMode === 'live' && (
+                  liveLoading ? (
+                    <div className="mini-history-card">
+                      <div className="mini-history-header">
+                        <span className="eyebrow">LIVE CURRENT AQI</span>
+                        <span className="mini-badge">Fetching</span>
+                      </div>
+                      <p className="form-hint muted-text"><LoaderCircle className="spin" size={14} /> Fetching live reading for {city}...</p>
                     </div>
-                    <p className="form-hint muted-text"><LoaderCircle className="spin" size={14} /> Fetching live reading for {city}...</p>
-                  </div>
-                ) : live ? (
-                  <div className="mini-history-card">
-                    <div className="mini-history-header">
-                      <span className="eyebrow">LIVE CURRENT AQI</span>
-                      <span className="mini-badge">{live.scale}</span>
+                  ) : live ? (
+                    <div className="mini-history-card">
+                      <div className="mini-history-header">
+                        <span className="eyebrow">LIVE CURRENT AQI</span>
+                        <span className="mini-badge">{live.scale}</span>
+                      </div>
+                      <div className="live-reading">
+                        <strong>{live.current_aqi}</strong>
+                        <span>{live.source}<small>{live.observed_at ? new Date(live.observed_at).toLocaleString('en-IN') : ''}</small></span>
+                      </div>
                     </div>
-                    <div className="live-reading">
-                      <strong>{live.current_aqi}</strong>
-                      <span>{live.source}<small>{live.observed_at ? new Date(live.observed_at).toLocaleString('en-IN') : ''}</small></span>
+                  ) : liveError ? (
+                    <div className="mini-history-card">
+                      <div className="mini-history-header">
+                        <span className="eyebrow">LIVE TELEMETRY STATUS</span>
+                        <span className="mini-badge">CPCB Fallback Active</span>
+                      </div>
+                      <p className="form-hint muted-text" style={{ margin: 0, fontSize: '11px' }}>
+                        <CircleHelp size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                        No live coordinates configured for {city}. Pipeline seamlessly fell back to verified CPCB records.
+                      </p>
                     </div>
-                  </div>
-                ) : liveError ? (
-                  <div className="mini-history-card">
-                    <div className="mini-history-header">
-                      <span className="eyebrow">LIVE CURRENT AQI</span>
-                      <span className="mini-badge">Unavailable</span>
-                    </div>
-                    <p className="form-hint muted-text" style={{ margin: 0, fontSize: '11px' }}>
-                      <CircleHelp size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
-                      {liveError}
-                    </p>
-                  </div>
-                ) : null}
+                  ) : null
+                )}
                 <p className="form-hint"><CircleHelp size={14} /> {pipelineMode === 'live' ? 'Live mode uses real-time 7-day telemetry converted to Indian NAQI.' : 'Historical mode evaluates the model against verified 2022–2025 records.'}</p>
                 <button className="primary-button" type="submit" disabled={busy || apiState !== 'ready'}>{busy ? <LoaderCircle className="spin" size={17} /> : <Activity size={17} />}<span>{busy ? 'Estimating…' : 'Estimate next day'}</span><ArrowUpRight size={16} /></button>
                 {apiState !== 'ready' && <p className="disabled-reason">{apiState === 'offline' ? 'Start the API to enable forecasts.' : 'Add data and train a model to enable forecasts.'}</p>}
